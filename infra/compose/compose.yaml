@@ -1,0 +1,92 @@
+name: ${COMPOSE_PROJECT_NAME:-import-erp-local}
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?Copy infra/compose/.env.example to .env first}
+    profiles: [infra]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:?POSTGRES_SUPERUSER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?POSTGRES_SUPERUSER_PASSWORD is required}
+      ERP_DB_USER: ${ERP_DB_USER:?ERP_DB_USER is required}
+      ERP_DB_PASSWORD: ${ERP_DB_PASSWORD:?ERP_DB_PASSWORD is required}
+      DW_DB_USER: ${DW_DB_USER:?DW_DB_USER is required}
+      DW_DB_PASSWORD: ${DW_DB_PASSWORD:?DW_DB_PASSWORD is required}
+      KEYCLOAK_DB_USER: ${KEYCLOAK_DB_USER:?KEYCLOAK_DB_USER is required}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./postgres/init-local-databases.sh:/docker-entrypoint-initdb.d/10-create-local-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:?Copy infra/compose/.env.example to .env first}
+    profiles: [infra]
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:?KEYCLOAK_DB_USER is required}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?KEYCLOAK_ADMIN is required}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "127.0.0.1:8180:8080"
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/9000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 25s
+
+  azurite:
+    image: ${AZURITE_IMAGE:?Copy infra/compose/.env.example to .env first}
+    profiles: [infra]
+    restart: unless-stopped
+    command: azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --location /data --debug /data/debug.log
+    ports:
+      - "127.0.0.1:10000:10000"
+    volumes:
+      - blob_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect(10000, '127.0.0.1').once('connect', () => process.exit(0)).once('error', () => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  otel-collector:
+    image: ${OTELCOL_IMAGE:?Copy infra/compose/.env.example to .env first}
+    profiles: [infra]
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  blob_data:

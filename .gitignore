@@ -1,0 +1,24 @@
+# Local configuration and runtime data
+.env
+.env.*
+!*.example
+bin/
+obj/
+.vs/
+.idea/
+.tools/dotnet/
+node_modules/
+dist/
+.next/
+coverage/
+.vercel/
+*.tsbuildinfo
+*.zip
+
+# Source workbooks are evidence, never source code.
+*.xlsx
+*.xlsm
+*.xlsb
+
+# Local services
+data/local/
