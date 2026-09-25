@@ -14,20 +14,24 @@ uma linha no histórico. Não remova registros anteriores.
 Uma marcação `[x]` só pode ser usada quando houver teste ou evidência descrita
 na coluna **Evidência**. Produção só é marcada depois de homologação formal.
 
+Os quadros e resultados SQLite/.NET anteriores à seção **Atualização do
+incremento atual** registram a implementação histórica, que foi removida do
+snapshot. Eles não comprovam implementação nem aceite na API Node. Para o
+estado executável após a limpeza, use a tabela do incremento atual.
+
 ## Ponto de retomada obrigatório
 
 **Última atualização:** 2026-09-24
 
-**Estado seguro atual:** Banco SQLite local preservado. Os containers Compose
-foram parados sem remover volumes, pois não são necessários para publicar o
-frontend na Vercel. O serviço PostgreSQL 17 do host continua em `5432`; não foi
-possível pará-lo sem permissão administrativa. O SDK .NET 10.0.301 foi instalado
-em `.tools/dotnet` (ignorado pelo Git); restore NuGet e build Next.js passaram.
-A CLI da Vercel está autenticada. A API ASP.NET Core ainda não está publicada e
-a URL de desenvolvimento encaminha à API local em `localhost:5000`; a origem
-HTTPS da API VPS ainda não foi cadastrada em ambiente Vercel.
-**Próximo incremento obrigatório:** portar endpoints, OIDC e autorização de
-ASP.NET Core para a API Node.js/Fastify em `apps/api`, instalada como serviço
+**Estado seguro atual:** Planilha, ZIP e banco SQLite locais foram preservados,
+mas continuam ignorados pelo Git. Os arquivos .NET/SQLite e Compose foram
+retirados do snapshot ativo; as linhas históricas abaixo registram validações
+anteriores e não significam que esses recursos existam na API Node. A API
+Fastify ainda é scaffold. A URL de desenvolvimento encaminha para
+`localhost:4000`; `VPS_API_URL` ainda não foi configurada na Vercel.
+**Próximo incremento obrigatório:** implementar migrations Node com ledger,
+endpoints de negócio, OIDC e autorização conforme os contratos deste plano e a
+evidência histórica do checklist; instalar a API Fastify como serviço
 persistente na VPS Hostinger junto ao PostgreSQL. A Vercel Free hospeda Next.js;
 `proxy.ts` encaminha `/auth/*` e `/api/v1/*` por HTTPS com token server-only. A
 API conecta a PostgreSQL local/privado; nenhuma conexão ou porta 5432 é exposta
@@ -36,7 +40,7 @@ na VPS; o computador pessoal pode ficar desligado. OIDC/segredos não foram
 fornecidos e serão configurados depois. O MCP Vercel consta em
 `~/.codex/config.toml`, mas não está carregado como ferramenta neste processo;
 nenhum projeto/setting Vercel foi inspecionado. Esta escolha e documentação
-foram registradas em 2026-09-24; a migração de endpoints/auth, migrations
+foram registradas em 2026-09-24; endpoints/auth e runner de migrations
 compatíveis, instalação na VPS e E2E continuam pendentes. A referência aceita
 para a cópia de trabalho é 7.000 linhas no Pré e 195 no Pós.
 
@@ -58,12 +62,14 @@ para a cópia de trabalho é 7.000 linhas no Pré e 195 no Pós.
 - **Arquivos e tarefas longas:** filesystem da função não é armazenamento
   persistente. Imports XLSX e documentos precisam de object storage externo;
   tarefas duráveis/outbox exigem execução assíncrona gerenciada ou cron/queue.
-- **Docker:** não é runtime de produção da Vercel e fica fora do caminho de
-  deploy. Compose existente pode permanecer como ferramenta opcional de
-  desenvolvimento, não requisito de deploy.
-- **Migração:** preservar código e migrations .NET como referência até parity,
-  testes e corte aprovados. Não marcar DEV como concluído por apenas alterar
-  documentação ou obter um build de frontend.
+- **Docker/.NET:** projetos, migrations SQLite, Compose e scripts da arquitetura
+  anterior foram removidos do snapshot ativo. Evidências e regras históricas
+  permanecem neste checklist; os recursos precisam ser reimplementados na stack
+  Node.
+- **Migrations:** migrations PostgreSQL reutilizáveis foram movidas para
+  `apps/api/migrations`; ainda não há runner Node nem validação contra a VPS.
+- **Dados locais:** ZIP, Excel, banco SQLite e SDK local ignorados foram
+  preservados; não entram no Git e não foram apagados nesta limpeza.
 
 Ao retomar em outra sessão, siga esta sequência:
 
@@ -156,7 +162,7 @@ inclua aqui a nova seção ou subseção antes de implementar a mudança.
 | 33 | Pacote final da equipe | [ ] | Repositório, ADRs, migrations, OpenAPI, pipeline, tela, BI, evidências, guias e plano de corte entregues |
 | 34 | Fontes de negócio/técnicas e controle de revisão | [-] | Fontes registradas; qualquer mudança de centralidade/grão/chave/rateio atualiza ADR, modelo, API, testes e BI juntos |
 
-## Cobertura das funcionalidades obrigatórias do MVP (RF01–RF16)
+## Cobertura histórica das funcionalidades do MVP (RF01–RF16)
 
 | RF | Funcionalidade | Status | Critério de aceite que falta ou foi atendido |
 |---|---|---|---|
@@ -213,7 +219,7 @@ inclua aqui a nova seção ou subseção antes de implementar a mudança.
 - [x] A planilha original permanece preservada e é ignorada pelo Git.
 - [x] KPIs são calculados pelo sistema com regras próprias, não por execução de fórmulas Excel.
 
-## Situação por item do plano
+## Situação histórica por item do plano (.NET/SQLite, antes da limpeza)
 
 | ID | Status | Entrega / aceite resumido | Evidência atual | Próxima ação |
 |---|---|---|---|---|
@@ -285,6 +291,7 @@ inclua aqui a nova seção ou subseção antes de implementar a mudança.
 
 | Data | Incremento | Status | Evidência / observação |
 |---|---|---|---|
+| 2026-09-24 | Limpeza do snapshot da arquitetura anterior | [-] | Removidos projetos ASP.NET Core, SQLite, runner/migrations SQLite, Compose/Keycloak/Azurite e scripts .NET/Docker; migrations PostgreSQL reutilizáveis movidas a `apps/api/migrations`. `.gitignore` mantém ZIP, planilha, banco local e SDK fora do Git. API Node ainda sem paridade; o histórico Git anterior foi preservado, sem reescrita de histórico. |
 | 2026-09-24 | Preparação operacional da VPS e documentação de funcionamento sem PC | [-] | README, setup Vercel, plano e checklist alinhados em Vercel Free + Next proxy + API Fastify/PostgreSQL na VPS. Modelos `deploy/hostinger/import-erp-api.service` e `nginx-api.conf.example` mais roteiro de instalação adicionados. Build Next.js e `tsc` da API passaram. Endpoints de negócio/OIDC, migrations da API e instalação real continuam pendentes; MCP Vercel não está disponível como ferramenta nesta sessão. |
 | 2026-09-24 | Escolha e preparação da stack Vercel + PostgreSQL VPS | [-] | Product Owner escolheu Vercel Free para Next.js e API Node + PostgreSQL na VPS Hostinger. Documentada API persistente acessada por HTTPS reverse proxy/túnel e gateway token; banco/segredos ficam na VPS, sem porta 5432 pública. O PC pessoal pode ficar desligado após deploy e configuração de início automático dos serviços. Scaffold Node criado, mas endpoints de negócio/OIDC, migrations PostgreSQL, instalação na VPS e E2E seguem pendentes. MCP Vercel está em `~\\.codex\\config.toml`, mas não apareceu carregado como ferramenta nesta sessão; inspeção da conta pendente. |
 | 2026-09-23 | Núcleo PO, leitura Excel, plano de promoção e interface inicial | [-] | PO central, histórico por linha, relação PO–IP e KPIs iniciais implementados; aceite integral do MVP pendente |
@@ -314,14 +321,13 @@ inclua aqui a nova seção ou subseção antes de implementar a mudança.
 
 | Item | Status | Evidência | Próximo passo |
 |---|---|---|---|
-| DEV01 | [-] | `packages.lock.json` foi gerado para todos os projetos .NET; README documenta .NET 10, Node 24, Corepack e Docker Compose. | Executar bootstrap limpo em uma segunda máquina e registrar a evidência. |
-| DEV02 | [-] | Docker Desktop instalado, mas containers Compose desligados sem apagar volumes; Docker não é requisito de Vercel nem VPS. Build Next.js e compilação TypeScript Fastify passaram em 2026-09-24. | Manter Docker fora do deploy; preparar PostgreSQL de teste segregado para CI. |
-| DEV03 | [-] | OIDC .NET/Keycloak local existe, mas ainda não foi portado para API Node persistente na VPS. Não há issuer/cliente/callback público nem sessão Node persistida. | Portar OIDC/PKCE, cookie, persistência, CSRF e logout; validar com provedor público quando disponível. |
-| DEV04 | [-] | M003 e políticas atuais existem no backend .NET; API Node precisa portar permissão e escopo completos. | Portar autorização server-side e validar casos 401/403/404, filtros, CSRF e escopo em preview. |
-| DEV15 | [-] | Transições para PO e IP seguem os estados e pré-condições da seção 10; endpoint de escrita exige `If-Match`, papel autorizado, escopo, motivo e evidências por transição. O estado e journal são gravados atomicamente em SQLite/PostgreSQL; a promoção importa um evento inicial ligado à linha XLSX e mapeia os seis status legados definidos no plano. ETag de estado, log de auditoria e exceção de pré-condição 422 documentados. Build API concluído sem warnings. | Validar execução com Keycloak e integrar evidências a entidades dos módulos subsequentes; testar concorrência/cancelamento/reabertura antes de aceite. |
-| DEV24 | [-] | `M006` e os repositórios SQLite/PostgreSQL implementam dispatcher com lease, retry limitado, dead-letter e inbox com chave única `(consumer,eventId)`; a API registra as dependências sem ativar consumidor inexistente. `MigrationChecks` passou os cenários de retry, lease e redelivery; a API compilou pelo MSBuild de contorno. A entrega é at-least-once. | Definir consumidor(es), destino, credenciais, alertas e reprocessamento manual; então registrar e validar o worker em ambiente compartilhado. |
-| Vercel/produção | [-] | Next.js e proxy same-origin compilam. Fastify tem health checks, validação do gateway e conexão PostgreSQL; modelos systemd/Nginx e roteiro Hostinger adicionados. Ainda não há rotas de negócio/OIDC, paridade de banco nem deploy. | Portar contratos e auth, implementar migrations/repos Node, validar segurança/paridade, instalar VPS e executar E2E antes de produção. |
-| Vercel/produção | [-] | Topologia escolhida: Vercel Free para Next.js; API Node e PostgreSQL na VPS. Frontend e VPS não dependem do PC pessoal, desde que API, banco e proxy/túnel estejam instalados como serviços com início automático e a VPS tenha conectividade. Esse requisito está documentado; o ambiente ainda não foi implantado. | Concluir migração e testes, configurar serviços persistentes/TLS/OIDC e executar smoke/E2E antes de considerar produção disponível. |
+| DEV01 | [-] | Lockfiles pnpm das aplicações Next.js e Fastify estão versionados; instruções .NET/Compose foram removidas do README ativo. | Validar instalação congelada em checkout limpo/CI. |
+| DEV02 | [-] | Docker/Compose não fazem parte da stack alvo. Builds Next.js e TypeScript Fastify passaram; a VPS não foi configurada. | Criar PostgreSQL de teste segregado e validar inicialização da API Node. |
+| DEV03 | [-] | OIDC/Keycloak só existem como evidência histórica no checklist; o código anterior foi removido. API Node não implementa login/sessão/CSRF. | Reimplementar OIDC/PKCE, callback, sessão persistente, CSRF e logout no Fastify. |
+| DEV04 | [-] | M003 PostgreSQL foi mantida em `apps/api/migrations`; implementação anterior de grants foi removida. Nenhum endpoint Node aplica escopos/permissões. | Portar autorização server-side por `(issuer, subject)`, papéis e escopos; validar 401/403/404. |
+| DEV15 | [-] | Regras de workflow e ETag permanecem especificadas na seção 10 e nas evidências históricas; endpoints/repositórios foram removidos com a implementação .NET. | Reimplementar estados/transições no Node com autorização, evidências, atomicidade e concorrência PostgreSQL. |
+| DEV24 | [-] | SQL PostgreSQL de auditoria/outbox foi mantido; dispatcher, repositórios e checks .NET/SQLite foram removidos do snapshot. Evidência antiga não valida o runtime Node. | Portar gravação atômica, dispatcher/worker e inbox no Node; testar retry, leases e idempotência. |
+| Vercel/produção | [-] | Builds Next.js e TypeScript Fastify passaram. Proxy, health checks, modelos systemd/Nginx e migrations PostgreSQL estão versionados. Não há login, endpoints de negócio, runner Node ou deploy configurado. | Implementar e validar API, configurar VPS/TLS/OIDC e executar E2E antes da produção. |
 
 ## Modelo para o próximo incremento
 
@@ -335,10 +341,10 @@ Copie esta linha para a tabela de histórico e atualize os itens afetados acima:
 
 | Data | Status | Evidência | Próximo passo |
 |---|---|---|---|
-| 2026-09-24 | [-] | `GET /api/v1/purchase-orders` aceita filtros por PO, importador, fornecedor, produto, IP, status histórico, atendimento, qualidade e período de necessidade; cada página retorna `totalCount` e `hasNext`. `GET /history-items` pagina observações históricas imutáveis e preserva a linhagem de aba/linha/valor. O detalhe declara `officialItemsKnown: false`, `balanceAvailable: false` e pendências abertas. GET retorna ETag; PATCH exige `If-Match` compatível e rejeita escrita obsoleta. Os checks de migration cobrem filtros, paginação, linhagem e concorrência; compilação C# e TypeScript passaram localmente. | Aplicar o escopo por importador de DEV03/DEV04 antes de expor o contrato fora do ambiente local; itens oficiais TOTVS e invoices continuam fora do escopo. |
+| 2026-09-24 | [-] | A implementação com filtros, paginação, linhagem e ETag existiu na API .NET removida. O frontend ainda espera esses contratos same-origin; a API Node atual não tem as rotas nem os repositórios. Os resultados de checks anteriores são evidência histórica, não validação da nova stack. | Portar contratos e escopo por importador para PostgreSQL/Node; validar filtros, paginação, ETag/If-Match e concorrência. Itens oficiais TOTVS e invoices continuam fora do escopo. |
 
 ## Evidência atual do DEV03
 
 | Data | Status | Evidência | Próximo passo |
 |---|---|---|---|
-| 2026-09-24 | [-] | OIDC Authorization Code + PKCE em API, sessão cookie HttpOnly/Secure com limite de inatividade de 30 min e absoluto de 8 h, CSRF nas mutações e frontend com verificação/logout implementados. Build da API passou; smoke local sem sessão confirmou 401 para API e redirecionamento para login em rotas de sessão. O desafio/login real, callback OIDC, cookies no navegador e CSRF autenticado não foram validados porque Docker daemon/Keycloak estavam indisponíveis. | Subir o realm local com `dev.ps1 up -Profile infra`, provisionar usuário de teste e validar jornada completa; não marcar concluído até os testes passarem. |
+| 2026-09-24 | [-] | OIDC Authorization Code + PKCE, sessão, CSRF e logout foram implementados somente na API .NET retirada. A API Node não oferece login, callback, sessão nem validação CSRF. As rotas frontend `/auth/*` estão preparadas para same-origin, mas ainda não funcionam. | Implementar fluxo PKCE/callback, sessão PostgreSQL, cookies seguros, CSRF e logout no Fastify; validar com um issuer de teste quando provisionado. |

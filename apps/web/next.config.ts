@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
 
-const legacyApiOrigin = process.env.LEGACY_API_ORIGIN ?? "http://localhost:5000";
+const apiDevOrigin = process.env.API_DEV_ORIGIN ?? "http://localhost:4000";
 
 const nextConfig: NextConfig = {
   async rewrites() {
     if (process.env.NODE_ENV !== "development") return [];
 
     return [
-      { source: "/auth/:path*", destination: `${legacyApiOrigin}/auth/:path*` },
-      { source: "/api/:path*", destination: `${legacyApiOrigin}/api/:path*` },
+      { source: "/auth/:path*", destination: `${apiDevOrigin}/auth/:path*` },
+      { source: "/api/v1/:path*", destination: `${apiDevOrigin}/api/v1/:path*` },
     ];
   },
 };

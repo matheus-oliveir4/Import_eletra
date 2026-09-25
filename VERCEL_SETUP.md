@@ -1,101 +1,86 @@
-# Preparação de deploy na Vercel
+﻿# Publicação alvo: Vercel Free + API e PostgreSQL na Hostinger
 
-## Arquitetura escolhida
+## Arquitetura
 
-- Destino do projeto Vercel: repositório GitHub `matheus-oliveir4/Import_eletra`.
-- Root Directory: `apps/web` (monorepo Next.js, pnpm e lockfile existente).
-- Next.js App Router hospeda a interface; `proxy.ts` encaminha `/auth/*` e
-  `/api/v1/*` na mesma origem para uma API Node.js HTTPS na VPS.
-- O usuário informou que usará Vercel Free e já tem PostgreSQL na VPS Hostinger.
-  A API Node e o PostgreSQL ficam na VPS; o banco só aceita conexão local/privada.
-  O proxy usa um token server-side; OIDC/autorização continuam obrigatórios.
-- Serviços Node API, PostgreSQL e proxy/túnel iniciam automaticamente na VPS;
-  não dependem do computador pessoal do usuário.
-- Docker não participa do build nem do runtime de produção.
+- **Vercel Free:** Next.js/React/TypeScript, Root Directory `apps/web`.
+- **VPS Hostinger:** API Fastify persistente e PostgreSQL. A API escuta em
+  `127.0.0.1:4000`; PostgreSQL permanece em loopback/privado.
+- **Conexão:** `apps/web/proxy.ts` encaminha `/auth/*` e `/api/v1/*` por HTTPS e
+  acrescenta `x-import-erp-gateway-token`. A Vercel não abre conexão direta ao
+  PostgreSQL. Não exponha a porta 5432.
+- **Independência do PC:** instale API, PostgreSQL e Nginx/túnel como serviços
+  com início automático na VPS. Depois do deploy/configuração, o computador
+  pessoal pode ficar desligado.
+- **Docker:** não é necessário para build ou produção.
 
-Esta configuração é um guia de preparação. O frontend atual ainda usa uma API
-ASP.NET Core separada e aponta por padrão a `localhost:5000`. O proxy local
-permite manter essa API no perfil de desenvolvimento durante a transição; o
-serviço Node na VPS, paridade de endpoints, autenticação e implantação ainda
-precisam ser concluídos antes de login/dados remotos funcionarem.
+O backend ASP.NET Core, SQLite, Compose e Keycloak/Azurite locais foram removidos
+do snapshot do repositório. As migrations PostgreSQL reaproveitáveis estão em
+`apps/api/migrations`. O scaffold Fastify atual valida o gateway e conecta ao
+PostgreSQL, mas ainda não implementa OIDC, sessões, migrations automáticas ou
+endpoints de negócio. Não publicar como aplicação operacional até a paridade e
+os fluxos de autenticação serem validados.
 
-## Variáveis para cadastrar na Vercel
+## Variáveis de ambiente
 
-Cadastrar valores somente em **Project Settings → Environment Variables**,
-separando Preview e Production. O arquivo `apps/web/.env.example` tem apenas os
-nomes e placeholders, sem valores utilizáveis.
+Cadastre Preview e Production separadamente no painel da Vercel. O arquivo
+`apps/web/.env.example` lista placeholders; não contém valores utilizáveis.
 
-| Variável | Escopo | Observação |
+| Nome | Onde fica | Uso |
 |---|---|---|
-| `VPS_API_URL` | Server only | Origem HTTPS do serviço Node na VPS (ex.: hostname da API/túnel); sem caminho, query ou credenciais |
-| `VPS_API_TOKEN` | Secret | Compartilhado com a API VPS, rotacionável; enviar somente pelo Next Proxy |
+| `VPS_API_URL` | Vercel, server-only | Origem HTTPS da API, sem caminho, query ou credenciais |
+| `VPS_API_TOKEN` | Vercel como Secret | Token de gateway enviado pelo proxy; exclusivo por ambiente |
+| `DATABASE_URL` | Serviço API na VPS | Conexão local/privada PostgreSQL com role de menor privilégio |
+| `GATEWAY_TOKEN` | Serviço API na VPS | Mesmo token de gateway do ambiente Vercel correspondente |
+| `OIDC_ISSUER` | Serviço API na VPS | Issuer HTTPS permitido |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | Serviço API na VPS | Credenciais do cliente OIDC |
+| `AUTH_SESSION_SECRET` | Serviço API na VPS | Segredo aleatório para sessão, separado por ambiente |
+| `APP_PUBLIC_ORIGIN` | Serviço API na VPS | Origem HTTPS do Preview ou Production para redirects/callback |
 
-`DATABASE_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
-`AUTH_SESSION_SECRET` e credenciais de storage pertencem ao ambiente protegido
-da API na VPS, não ao projeto Vercel. Não adicionar senha, connection string,
-client secret ou token neste guia, checklist, plano, issue, log ou variável
-`NEXT_PUBLIC_*`. Preview deve usar token e issuer de teste separados; não usar
-Preview para gravar no banco operacional.
+Nunca coloque secrets em `NEXT_PUBLIC_*`, Git, logs, plano, checklist ou na URL
+do banco enviada ao browser. Preview deve usar dados de teste e segredo/token
+separados; não deve gravar no banco operacional.
 
-## Conectividade da VPS
+## Configurar a VPS
 
-1. Confirmar versão do PostgreSQL, DNS, certificado TLS, backup e restore testado.
-2. Criar banco/schema e role exclusiva da aplicação, sem superuser e com os
-   privilégios mínimos para as migrations e operações necessárias.
-3. Manter PostgreSQL bound a localhost/rede privada, sem abrir porta 5432 para
-   Vercel Free nem para `0.0.0.0/0`.
-4. Instalar o serviço API Node na VPS como serviço persistente (`systemd` ou
-   supervisor equivalente), usuário do sistema sem privilégios, `HOST=127.0.0.1`
-   e reinício automático.
-5. Expor somente HTTPS para a API através de reverse proxy ou Cloudflare Tunnel;
-   a API exige `GATEWAY_TOKEN` e autenticação OIDC de usuário. PostgreSQL fica
-   bound a loopback e não tem regra pública.
-6. Configurar as duas cópias de `VPS_API_TOKEN` (Vercel e VPS), Preview separado,
-   rotação documentada, rate limit e respostas sem secrets.
-7. Validar conectividade de Preview sem imprimir URI, senha ou token nos logs.
+1. Confirmar sistema operacional, Node 24, versão PostgreSQL, DNS, TLS e espaço
+   de armazenamento.
+2. Criar role e banco exclusivos da aplicação; confirmar backup e restauração.
+3. Instalar/compilar `apps/api` e instalar o serviço
+   `deploy/hostinger/import-erp-api.service` como usuário sem privilégios.
+4. Criar `/etc/import-erp/api.env` somente na VPS, modo `0640`, com os valores
+   reais. Não copiar `.env.example` sem substituir e revisar os placeholders.
+5. Configurar Nginx com `deploy/hostinger/nginx-api.conf.example` e certificado
+   válido, ou escolher Cloudflare Tunnel. Expor apenas HTTPS à API e manter os
+   listeners da API/banco em loopback.
+6. Habilitar o serviço no `systemd`; validar health checks sem registrar tokens.
+7. Cadastrar `VPS_API_URL`/`VPS_API_TOKEN` no Vercel por ambiente e configurar
+   o issuer/callback OIDC correspondente.
 
-## OIDC e cookies
+O roteiro operacional está em [deploy/hostinger/README.md](deploy/hostinger/README.md).
 
-Antes de homologar login, provisionar issuer OIDC alcançável pelo serviço Node na
-VPS e registrar o redirect URI HTTPS no domínio Vercel (Preview/Production
-conforme suportado pelo provider), com callback atendido pelo serviço Node
-através do proxy same-origin. Manter issuer fixo/allowlisted, PKCE,
-state/nonce, cookies `HttpOnly`, `Secure`, `SameSite` correto ao fluxo, proteção
-CSRF em mutações e retorno seguro para URLs da mesma origem. Sessão e estado de
-login não podem depender da memória ou do disco efêmero de uma instância.
+## Migrations e dados
 
-## Ordem para habilitar deploy funcional
+As migrations SQL PostgreSQL estão em `apps/api/migrations`. Ainda falta um
+runner Node com ledger/checksum e validação contra uma base descartável da
+mesma versão da VPS. Não aplique os scripts na base operacional antes de backup,
+restore de prova e revisão de compatibilidade. A API não executa DDL no startup.
 
-1. Portar endpoints ASP.NET Core usados pela UI para serviço Node em `apps/api`;
-   conservar contratos e executar localmente com PostgreSQL da VPS/teste.
-2. Migrar chamadas do browser para URLs same-origin; `proxy.ts` encaminha para a
-   API Node HTTPS com header token não acessível ao cliente.
-3. Portar auth, autorização, escopo por importador, CSRF, auditoria, versionamento
-   ETag e contratos de erro; cobrir testes de regressão.
-4. Adaptar/validar migrations PostgreSQL e executar contra banco de teste da
-   mesma versão da VPS; verificar rollback e backup antes de produção.
-5. Configurar env vars Preview, conectividade TLS/rede e OIDC; rodar E2E de login,
-   sessão, 401/403/404, escopo e escrita concorrente.
-6. Instalar API Node e proxy/túnel na VPS; conectar o repositório à Vercel com
-   Root Directory `apps/web`; conferir build e Preview pelo MCP quando carregado.
-7. Produção somente depois de backup/restore, UAT e aceite; configurar domínio,
-   callback OIDC e env vars de Production separadamente.
+Imports de XLSX/documentos não podem depender do filesystem da Vercel. O parser,
+storage privado e processamento durável ainda precisam ser definidos/portados
+antes de ativar importações ou workers em produção.
 
-O roteiro operacional com modelos de `systemd` e Nginx está em
-[`deploy/hostinger/README.md`](deploy/hostinger/README.md). O serviço inclui
-`/health/live` e `/health/ready`; readiness exige o token do gateway. Com
-`systemctl enable`, a API inicia após reboot e não depende do PC. VPS,
-PostgreSQL, Nginx/TLS, DNS e Vercel precisam continuar disponíveis.
+## Checklist de deploy
 
-## Itens não cobertos por uma função HTTP simples
+- [ ] Implementar OIDC Authorization Code + PKCE, callback, sessão persistida,
+      logout, CSRF e autorização por papel/escopo na API Node.
+- [ ] Portar endpoints de carteira/detalhe, qualidade, workflow, auditoria e
+      importação; validar contratos e regras.
+- [ ] Implementar e validar migration runner em PostgreSQL de teste.
+- [ ] Instalar e habilitar a API como serviço persistente na VPS.
+- [ ] Configurar HTTPS, DNS, firewall, gateway token e variáveis separadas.
+- [ ] Executar build Vercel, smoke/E2E, backup e restore de prova.
+- [ ] Fazer UAT e só então liberar Production.
 
-- Upload XLSX e documentos: escolher object storage privado e desenhar upload
-  assinado/validação; não salvar arquivos no filesystem da função.
-- Importação, exportação, dispatch da outbox e ETL: escolher queue/cron ou worker
-  externo durável, com checkpoint, leases, retry, dead-letter e idempotência.
-- Relatórios e Power BI: desenhar acesso ao banco e usuário read-only separado.
-
-O MCP da Vercel está configurado em `~/.codex/config.toml`, mas precisa estar
-carregado na sessão para conferir projeto, Root Directory, deployments e
-variáveis sem ler valores secretos. Até então, este documento não afirma que o
-projeto Vercel foi inspecionado ou vinculado.
+O MCP da Vercel consta em `~/.codex/config.toml`, mas não apareceu como
+ferramenta carregada nesta sessão; nenhum projeto, variável ou deployment da
+conta foi inspecionado.

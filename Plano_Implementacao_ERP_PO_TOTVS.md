@@ -6,7 +6,7 @@ Este documento define o produto, a arquitetura de dados, a stack, os contratos t
 
 A **PO TOTVS é a entidade central de negócio e o ponto de entrada operacional**. O IP representa uma execução logística vinculada aos itens do pedido. Uma PO pode ser atendida por vários IPs; um IP pode reunir itens de várias POs. O desenho de telas, permissões, indicadores e rastreabilidade parte dessa relação.
 
-A arquitetura de aplicação escolhida pelo Product Owner em 24 de setembro de 2026 é **Next.js/React/TypeScript na Vercel Free**, com **API Node.js + PostgreSQL privados na mesma VPS Hostinger**. Next.js usa `proxy.ts` para encaminhar `/auth/*` e `/api/v1/*` server-side para a API por HTTPS com token de gateway; a conexão do banco não sai da VPS e a porta PostgreSQL não é publicada. A API e o PostgreSQL serão serviços persistentes na VPS, independentes do computador pessoal. OIDC, storage de arquivos e processamento durável serão serviços externos configurados por ambiente. ASP.NET Core, SQLite, Compose, Keycloak e Azurite no repositório são legado/ferramentas de transição, não o runtime alvo. A migração precisa preservar regras/contratos e iniciar com os valores históricos das duas abas; publicar apenas a interface vazia não atende ao aceite.
+A arquitetura de aplicação escolhida pelo Product Owner em 24 de setembro de 2026 é **Next.js/React/TypeScript na Vercel Free**, com **API Fastify/Node.js + PostgreSQL privados na mesma VPS Hostinger**. Next.js usa `proxy.ts` para encaminhar `/auth/*` e `/api/v1/*` server-side para a API por HTTPS com token de gateway; a conexão do banco não sai da VPS e a porta PostgreSQL não é publicada. A API e o PostgreSQL serão serviços persistentes na VPS, independentes do computador pessoal. OIDC, storage de arquivos e processamento durável serão serviços configurados por ambiente. O código ASP.NET Core/SQLite/Compose foi removido do snapshot ativo; as regras, contratos e resultados históricos permanecem documentados neste plano e no checklist. A API Node ainda é scaffold e publicar apenas a interface vazia não atende ao aceite.
 
 ## 1 Como utilizar este plano
 
@@ -157,7 +157,7 @@ Zero é valor conhecido e deve ser importado. Vazio é desconhecido e permanece 
 | 011 | Uma organização com múltiplos importadores | Atende as três unidades; não implementar SaaS multitenant no MVP |
 | 012 | UUID técnico, chave externa de PO e IP funcional | PO identificada por instância/empresa/filial/número; IP continua identificador logístico, nunca chave primária |
 | 013 | Dinheiro e quantidades decimais | Nunca usar float/double como armazenamento financeiro canônico |
-| 014 | Docker Compose opcional somente para desenvolvimento local | Reproduz serviços locais quando necessário; Docker não participa do build/deploy Vercel |
+| 014 | Sem Docker no caminho de desenvolvimento/deploy obrigatório | Next.js e Fastify rodam com Node; PostgreSQL de teste pode ser remoto e segregado |
 | 015 | Vercel Free para UI; API Node e PostgreSQL na VPS Hostinger | Sem custo de Static IP presumido; serviços persistentes da VPS não dependem do PC pessoal |
 | 016 | Same-origin via Next.js `proxy.ts` e rewrites externos | Remove `NEXT_PUBLIC_API_URL`; encaminha `/auth/*` e `/api/v1/*` para API HTTPS na VPS |
 | 017 | API Node autenticada por gateway token; PostgreSQL privado | `VPS_API_URL`/token apenas na Vercel; `DATABASE_URL`, OIDC e session secret apenas na VPS; nunca acessar Postgres pelo browser |
@@ -187,20 +187,20 @@ Versões de referência verificadas na documentação oficial em setembro de 202
 | Importador Excel | Node.js ou job gerenciado compatível | Definir ao portar parser; não usar filesystem da função como storage | Leitura dos valores salvos do XLSX e staging idempotente |
 | Jobs | Outbox PostgreSQL + cron/queue compatível com execução curta | Escolher mecanismo e retry antes de ativar consumidores | Trabalho durável sem worker residente na Vercel |
 | Login corporativo | OIDC Authorization Code + PKCE | Issuer e cliente confidencial a confirmar | Identidade; callback HTTPS da aplicação Vercel |
-| Provedor local | Keycloak opcional para desenvolvimento | Compose existente | Desenvolvimento sem credenciais produtivas |
+| Provedor de identidade | OIDC externo a selecionar | Sem provider local versionado | Issuer e client de teste/prod separados |
 | Arquivos | Object storage externo compatível com upload assinado | Provedor pendente | Documentos e planilhas, sem persistência em disco local |
 | Testes backend | Node.js/TypeScript + PostgreSQL real em CI | Fixados em lockfile | Regras, autorização, transações e integração |
 | Testes frontend | Vitest, Testing Library e Playwright | Versões compatíveis fixadas | Componentes e fluxos de ponta a ponta |
 | Observabilidade | OpenTelemetry e logs JSON | Pacotes compatíveis fixados | Traces, métricas e logs correlacionados |
 | Entrega frontend | Vercel Free para preview/produção | Root Directory `apps/web`; projeto a vincular ao GitHub | Build Next.js, domínio e proxy HTTPS same-origin |
 | Entrega backend | Serviço Node na VPS + reverse proxy HTTPS ou Cloudflare Tunnel | `systemd`/supervisor; listener API `127.0.0.1` | Processo persistente após reboot, sem Docker |
-| Desenvolvimento local | Node.js + pnpm; Docker Compose opcional | Lockfiles do repo | Desenvolvimento; não é pré-requisito do deploy |
+| Desenvolvimento local | Node.js + pnpm; PostgreSQL de teste remoto ou local gerenciado | Lockfiles do repo | Desenvolvimento; sem Compose obrigatório |
 | CI e repositório | GitHub e GitHub Actions | Workflows versionados | Checks, artefatos e promoção |
 | BI | Power BI Desktop e Service | Versões homologadas pela organização | Modelo semântico, medidas e relatórios |
 
-.NET 10/EF Core e seus projetos permanecem como implementação histórica e referência de regra durante a migração, mas não compõem o runtime de produção. Node 24 foi escolhido por ser LTS para Next.js e serviço Fastify. A versão PostgreSQL da VPS será confirmada antes de aplicar migrations. A API, banco e proxy/túnel iniciam automaticamente na VPS; não dependem do computador pessoal ligado.
+Node 24 é o runtime do Next.js e da API Fastify. A implementação .NET foi retirada do snapshot para reduzir e alinhar o repositório; regras e evidências da implementação anterior permanecem registradas no checklist e na história Git. A versão PostgreSQL da VPS será confirmada antes de aplicar migrations. A API, banco e proxy/túnel iniciam automaticamente na VPS; não dependem do computador pessoal ligado.
 
-Browser e funções Vercel não abrem conexão ao PostgreSQL da VPS. A API Node na VPS acessa PostgreSQL por `DATABASE_URL` local, usa queries parametrizadas e pool limitado; Next `proxy.ts` envia o token gateway somente server-side. Durante o corte haverá um único runtime escritor. A migração não deve deixar API .NET e Node gravando as mesmas tabelas em paralelo. Migrations existentes são preservadas e migrations Node/PostgreSQL são aditivas até paridade e corte.
+Browser e funções Vercel não abrem conexão ao PostgreSQL da VPS. A API Node na VPS acessa PostgreSQL por `DATABASE_URL` local, usa queries parametrizadas e pool limitado; Next `proxy.ts` envia o token gateway somente server-side. A API ainda não tem paridade nem writer funcional. Migrations PostgreSQL reutilizáveis foram mantidas em `apps/api/migrations`, sem runner Node nem validação contra a VPS; qualquer aplicação exige revisão, banco isolado e backup restaurável.
 
 ## 6 Topologia e fronteiras
 
@@ -248,11 +248,8 @@ Cada módulo expõe casos de uso. Uma tela não escreve diretamente em tabelas d
 | `apps/web` | Next.js, componentes, rotas, formulários e testes frontend |
 | `apps/web/proxy.ts` | Proxy same-origin e token server-only para a API VPS |
 | `apps/api` | API Fastify Node, OIDC, autorização, contratos e PostgreSQL na VPS |
-| `apps/api/src` | Rotas por feature, sessão, validação, comandos e consultas parametrizadas |
-| `src/ImportErp.Api` | API ASP.NET Core de referência durante a migração e desenvolvimento legado |
-| `src/ImportErp.Application`, `Domain`, `Infrastructure` | Referência comportamental para portar regras; manter até paridade/aceite |
-| `src/ImportErp.Worker` | Worker .NET legado; substituir por job/queue gerenciado ou serviço externo antes de ativar jobs |
-| `src/ImportErp.Migrations` | Migrations existentes/referência; criar migrations PostgreSQL aditivas e Node-compatible |
+| `apps/api/src` | Rotas por feature, sessão, validação, comandos e consultas parametrizadas (em implementação) |
+| `apps/api/migrations` | SQL PostgreSQL reaproveitado; ainda sem runner ou validação operacional |
 | `tests/Unit` | Regras e transformações determinísticas |
 | `tests/Integration` | PostgreSQL, API, concorrência, storage e importação |
 | `tests/Architecture` | Restrições de dependência entre camadas |
@@ -261,12 +258,11 @@ Cada módulo expõe casos de uso. Uma tela não escreve diretamente em tabelas d
 | `data/fixtures` | Amostras sintéticas ou anonimizadas para testes |
 | `analytics/sql` | DDL analítico, cargas e testes de qualidade |
 | `analytics/powerbi` | Projeto PBIP, modelo semântico e medidas |
-| `infra/compose` | Compose, gateway, Keycloak local e configurações |
 | `VERCEL_SETUP.md` | Preparação Vercel, PostgreSQL VPS, OIDC, storage, jobs e rollback |
 | `docs/adr` | Decisões arquiteturais versionadas |
 | `docs/runbooks` | Execução, backup, restauração, migração e incidentes |
 
-Usar um único repositório. `global.json` fixa o SDK .NET; `Directory.Packages.props` centraliza NuGet; `packages.lock.json` e `pnpm-lock.yaml` fixam dependências. Exigir modo de instalação travado em CI. Arquivos Excel reais e segredos não entram no Git.
+Usar um único repositório. Cada aplicação Node mantém `package.json` e `pnpm-lock.yaml` próprios; instalar em modo congelado na CI. Não há dependência do SDK .NET ou do Docker. Arquivos Excel reais, ZIPs, bancos locais e segredos não entram no Git.
 
 ## 8 Arquitetura de dados
 
@@ -741,7 +737,7 @@ Toda tela prevê carregamento, vazio, sem permissão, erro, sucesso, conflito de
 
 ### 15.1 Fluxo definido
 
-O serviço Fastify persistente na VPS implementará OIDC Authorization Code com PKCE e sessão por cookie; o proxy Next.js mantém `/auth/*` e a API same-origin no domínio Vercel. O issuer corporativo ainda será confirmado; Keycloak pode continuar como provedor de desenvolvimento. O adaptador de identidade utiliza `(issuer, subject)` como chave externa; e-mail serve para exibição e convite, não como identidade permanente. Estado transitório do fluxo OIDC e sessões devem ser persistidos no PostgreSQL, sem depender de memória local. A implementação Node ainda está pendente e não pode ser usada para login de produção.
+O serviço Fastify persistente na VPS implementará OIDC Authorization Code com PKCE e sessão por cookie; o proxy Next.js mantém `/auth/*` e a API same-origin no domínio Vercel. O issuer corporativo ainda será confirmado; não há provider local no repositório ativo. O adaptador de identidade utiliza `(issuer, subject)` como chave externa; e-mail serve para exibição e convite, não como identidade permanente. Estado transitório do fluxo OIDC e sessões devem ser persistidos no PostgreSQL, sem depender de memória local. A implementação Node ainda está pendente e não pode ser usada para login de produção.
 
 Cookie de sessão: `HttpOnly`, `Secure`, escopo de host, `SameSite=Lax` compatível com o fluxo homologado. Cookies transitórios OIDC seguem a configuração segura do middleware. API mutável exige token anti-CSRF e valida origem quando aplicável. Tokens do provedor não serão armazenados em localStorage. O MVP não precisa chamar Graph; não pedir scopes extras ou refresh token sem necessidade.
 
@@ -788,27 +784,22 @@ Retenção de documentos e auditoria será definida pela organização com respo
 
 ### 17.1 Requisitos e serviços
 
-Máquina de referência: Git, Node 24, pnpm/Corepack e SDK .NET 10 somente para preservar/validar a implementação legada enquanto necessário. Docker/Compose é opcional para o perfil de desenvolvimento local; não é requisito para Vercel nem produção. Power BI Desktop será usado em uma estação Windows da equipe de BI.
+Máquina de referência: Git, Node 24 e pnpm/Corepack. .NET e Docker foram retirados da stack ativa. A API requer um PostgreSQL de desenvolvimento/teste segregado; não use a base operacional da VPS durante desenvolvimento. Power BI Desktop será usado em uma estação Windows da equipe de BI.
 
 | Serviço local | Porta proposta | Persistência | Healthcheck |
 |---|---:|---|---|
-| Gateway HTTPS | 8443 | Configuração e certificado de desenvolvimento | Resposta da rota de saúde |
-| Next.js | 3000, rede interna | Código com hot reload | HTTP |
-| API Fastify | 4000 loopback na VPS | Serviço systemd e sessões/banco persistidos | `/health/live` e `/health/ready` |
-| Next.js (UI + proxy) | 3000 local / HTTPS Vercel | Sem estado local durável | Build e rota `/api/health` |
-| PostgreSQL local (opcional) | 5432 loopback | Volume Compose | `pg_isready` |
-| PostgreSQL VPS | TLS, porta administrada pelo usuário | Backups e retenção da VPS | Conexão restrita por firewall |
-| Keycloak local (opcional) | 8180 loopback | Volume/banco local | Readiness do provedor |
-| Object storage | Endpoint externo, credenciais server-side | Bucket privado e versionamento | Upload/download autorizado |
-| Cron/queue | Sem porta pública | Registro idempotente no PostgreSQL | Última execução e backlog |
+| Next.js | 3000 local / HTTPS Vercel | Código com hot reload | HTTP e build |
+| API Fastify | 4000 loopback local/VPS | Processo local ou `systemd` na VPS | `/health/live`; readiness requer gateway e PostgreSQL |
+| PostgreSQL de teste | endpoint privado separado | Base descartável/segregada | Conexão com role de privilégio mínimo |
+| PostgreSQL VPS | loopback na VPS | Backups e retenção da VPS | Health check privado |
+| Object storage | Endpoint externo, credenciais server-side | Bucket privado e versionamento | Upload/download autorizado (pendente) |
+| Worker/queue | VPS ou serviço escolhido | Registro idempotente no PostgreSQL | Heartbeat e backlog (pendente) |
 
-PostgreSQL local terá bancos `import_erp`, `import_dw` e `keycloak`, com usuários distintos. Não usar a credencial superuser da instância na API. Credenciais locais são exclusivas de desenvolvimento. Portas administrativas publicadas apenas em loopback.
+Não há mais banco SQLite, Keycloak, Azurite ou gateway Docker local versionado. Não use a role superuser da VPS na API. Credenciais de Preview e Production são separadas.
 
 ### 17.2 Perfis de execução
 
-**Web local:** Next.js encaminha chamadas por rewrites de desenvolvimento para a API local. **API local:** durante a transição, ASP.NET Core e SQLite continuam como referência; o serviço Node usa PostgreSQL isolado quando houver paridade. **Vercel:** Root Directory `apps/web`, UI Next.js e proxy same-origin para Fastify na VPS. **Produção VPS:** Node 24, PostgreSQL local, `systemd` com reinício automático e HTTPS via Nginx ou Cloudflare Tunnel. **Test:** PostgreSQL segregado e fixtures controladas. Compose, Keycloak, Azurite e .NET continuam ferramentas de desenvolvimento até que as rotas equivalentes Node e OIDC passem validação; o scaffold atual ainda não é runtime operacional.
-
-O repositório deverá fornecer `dev.ps1` e `dev.sh` com a mesma interface: `bootstrap`, `up`, `migrate`, `seed`, `import-history`, `test`, `down` e `reset`. `reset` deve exigir indicação explícita do ambiente e confirmação, e nunca aceitar uma conexão produtiva.
+**Web local:** Next.js encaminha `/auth/*` e `/api/v1/*` para `API_DEV_ORIGIN` (padrão `http://localhost:4000`). **API local:** Fastify usa um PostgreSQL de teste segregado e token de gateway local. **Vercel:** Root Directory `apps/web`, UI Next.js e proxy same-origin para Fastify na VPS. **Produção VPS:** Node 24, PostgreSQL local, `systemd` com reinício automático e HTTPS via Nginx ou Cloudflare Tunnel. O scaffold não contém as rotas de autenticação ou negócio e ainda não é runtime operacional. Não use os comandos locais para apontar à base de produção.
 
 ### 17.3 Configuração mínima
 
@@ -818,30 +809,28 @@ O repositório deverá fornecer `dev.ps1` e `dev.sh` com a mesma interface: `boo
 | `OIDC_ISSUER` | URL do issuer | HTTPS e issuer allowlisted; configurado no serviço Node da VPS |
 | `OIDC_CLIENT_ID` | Cliente OIDC | Público identificador; separado por ambiente |
 | `OIDC_CLIENT_SECRET` | Cliente confidencial OIDC | Secret do serviço Node na VPS, fora do Git |
-| `AUTH_SECRET` | Assinatura/cripto de sessão | Segredo aleatório robusto, separado por ambiente, somente na VPS |
-| `APP_BASE_URL` | Domínio preview/produção | HTTPS; callback e proteção de redirects, configurado na VPS |
+| `AUTH_SESSION_SECRET` | Assinatura/cripto de sessão | Segredo aleatório robusto, separado por ambiente, somente na VPS |
+| `APP_PUBLIC_ORIGIN` | Domínio preview/produção | HTTPS; callback e proteção de redirects, configurado na VPS |
 | `OBJECT_STORAGE_*` | Endpoint/bucket/credenciais | Server-only; bucket privado; detalhes pendentes |
 | `VPS_API_URL` | Origem HTTPS da API Fastify na VPS | Server-only na Vercel; sem credenciais, caminho ou query |
 | `VPS_API_TOKEN` | Autenticar o proxy Next.js perante a API VPS | Secret na Vercel e VPS, separado entre Preview e Production |
+| `GATEWAY_TOKEN` | Proteger o serviço Fastify da origem Vercel | Mesmo valor do `VPS_API_TOKEN` no ambiente correspondente; mínimo 32 bytes |
 | `CRON_SECRET` | Autenticar cron/worker quando definido | Secret no serviço responsável; rota não pode ficar aberta |
 | `NEXT_PUBLIC_APP_NAME` | Nome visível | Única classe de variáveis pública permitida aqui |
 
-`DATABASE_URL` deve apontar para PostgreSQL local/privado na VPS; somente a API Node abre essa conexão. A Vercel conhece apenas a origem HTTPS e o token do gateway. A API limita o pool conforme a VPS. Preview usa API/token e dados segregados, nunca a base operacional.
+`DATABASE_URL` deve apontar para PostgreSQL local/privado; somente a API Node abre essa conexão. A Vercel conhece apenas a origem HTTPS e o token do gateway. A API limita o pool conforme a VPS. Desenvolvimento e Preview usam API/token e dados segregados, nunca a base operacional.
 
 ### 17.4 Sequência de bootstrap e Vercel
 
-Para desenvolvimento, use o README e os scripts versionados. Para preparar Vercel, ligar o repositório GitHub ao projeto, configurar Root Directory `apps/web`, manter o package manager/lockfile pnpm e inserir variáveis por ambiente no painel Vercel. Não cadastrar secrets no build do browser, em `NEXT_PUBLIC_*`, no Git, em logs ou neste plano. A conexão MCP será usada quando estiver disponível nesta sessão para confirmar o projeto, root e configurações sem ler/expor valores secretos.
+Para desenvolvimento, use o README, `corepack pnpm --dir apps/web dev` e `corepack pnpm --dir apps/api dev`, com env de teste local. Na Vercel, ligar o repositório GitHub, configurar Root Directory `apps/web` e inserir somente `VPS_API_URL`/`VPS_API_TOKEN` por ambiente. Não cadastrar secrets no bundle, em `NEXT_PUBLIC_*`, no Git, em logs ou neste plano. Nenhum projeto ou configuração da conta foi inspecionado nesta sessão porque o MCP da Vercel não estava carregado como ferramenta.
 
 ```bash
 git clone <repositorio-da-equipe>
 cd import-erp
-./dev.sh bootstrap
-./dev.sh up --profile infra
-./dev.sh migrate
-./dev.sh seed --dataset reference
-./dev.sh import-history --file /caminho/Follow_Up_Import_2026.xlsx --preview
-./dev.sh import-history --batch <uuid-do-lote> --commit
-./dev.sh test
+corepack pnpm --dir apps/web install --frozen-lockfile
+corepack pnpm --dir apps/api install --frozen-lockfile
+cp apps/api/.env.example apps/api/.env
+corepack pnpm --dir apps/web dev
 ```
 
 Bootstrap valida versões, cria configuração local por exemplo, prepara certificados, instala dependências travadas e registra issuer/client OIDC local. Seed de referência cria perfis, moedas e auxiliares mínimos; seed histórico é separado e nunca executado automaticamente em produção.
@@ -923,7 +912,7 @@ Power BI Service requer workspace, licenças e credenciais definidos pela organi
 
 ### 20.1 Camadas e dados
 
-Unitários Node/TypeScript para domínio, decimal, status, normalização, parsing e permissões. Integração com PostgreSQL real, local em Docker opcional ou ambiente segregado, não SQLite como substituto do comportamento relacional; versão conforme a VPS após inventário. Integração de object storage com emulator apropriado ao provider escolhido. Testes de API incluem autenticação OIDC controlada, autorização e anti-CSRF. Playwright valida jornadas com perfis diferentes.
+Unitários Node/TypeScript para domínio, decimal, status, normalização, parsing e permissões. Integração com PostgreSQL real em ambiente segregado, não SQLite como substituto do comportamento relacional; versão conforme a VPS após inventário. Integração de object storage com emulator apropriado ao provider escolhido. Testes de API incluem autenticação OIDC controlada, autorização e anti-CSRF. Playwright valida jornadas com perfis diferentes.
 
 Fixtures devem incluir valores com vírgula, #REF!, NCM ausente, múltiplos status por IP, container 0,5, PO dividida em processos, duas invoices, moedas diferentes, datas ausentes, caracteres acentuados e linhas além do autofiltro. O arquivo real deve ser testado em ambiente restrito e não enviado a uma CI pública.
 
@@ -1011,7 +1000,7 @@ Estimativa de referência: **14 a 18 semanas**, com um desenvolvedor backend, um
 
 | Etapa | Janela indicativa | Entregas | Dependência e condição de saída |
 |---|---|---|---|
-| E0 Fundação e contratos | Semanas 1–2 | Repositório, ADRs, stack fixada, Compose, CI, OpenAPI inicial, layout UX | Login local e teste automatizado funcionando |
+| E0 Fundação e contratos | Semanas 1–2 | Repositório, ADRs, stack fixada, API Node, CI, OpenAPI inicial, layout UX | Health checks, contratos e PostgreSQL de teste funcionando |
 | E1 Modelo e diagnóstico | Semanas 2–3 | ER lógico/físico, migrations iniciais, dicionário e fixtures | Modelo revisado contra as duas abas |
 | E2 Migração histórica | Semanas 3–5 | Staging, parser, normalização, revisão, carga e reconciliação | 7.130 linhas preservadas e reexecução idempotente |
 | E3 Carteira central e núcleo | Semanas 4–7 | POs TOTVS, cadastros, itens históricos, solicitações, IPs, permissões e auditoria | Abrir PO e navegar seu histórico/atendimento |
@@ -1028,8 +1017,8 @@ Etapas sobrepostas indicam trabalho paralelo entre funções, não omissão de d
 | ID | Implementação | Aceite específico |
 |---|---|---|
 | DEV01 | Configurar monorepo, lockfiles e SDK | Ambiente reproduzido em duas máquinas |
-| DEV02 | Compose e scripts de bootstrap | Up/down sem destruir volumes; reset protegido |
-| DEV03 | OIDC e sessão | Keycloak local e Entra homologação testados |
+| DEV02 | Instalação Node e PostgreSQL de teste | Lockfiles congelados; desenvolvimento sem Docker obrigatório |
+| DEV03 | OIDC e sessão | Provider OIDC de teste e Entra homologados |
 | DEV04 | Perfis e escopo de importador | Testes negativos para API, anexos e exportações |
 | DEV05 | Schemas e migrations | Banco vazio e upgrade passam em CI |
 | DEV06 | Cadastros e alias | Trim sem perda do código original; duplicação tratada |
@@ -1061,13 +1050,14 @@ Etapas sobrepostas indicam trabalho paralelo entre funções, não omissão de d
 ### 24.2 Trilha de migração para Vercel + PostgreSQL na VPS
 
 Esta trilha foi aprovada pelo Product Owner em 2026-09-24 e complementa o backlog
-DEV01–DEV30. O código ASP.NET Core permanece como referência até o aceite da
-paridade; não executar duas APIs como escritoras do mesmo esquema durante o
-corte.
+DEV01–DEV30. A implementação ASP.NET Core foi removida do snapshot após a
+decisão de reduzir a stack. O plano e o checklist preservam contratos e
+evidências históricos para orientar a migração Node; não presumir paridade com
+base apenas nesses registros.
 
 | Ordem | Trabalho | Saída/aceite |
 |---:|---|---|
-| V01 | Fixar `apps/web` como Root Directory Vercel, manter pnpm/lockfile e remover URL pública de API do frontend | UI usa apenas endpoints same-origin; desenvolvimento pode usar proxy local temporário para API .NET |
+| V01 | Fixar `apps/web` como Root Directory Vercel, manter pnpm/lockfile e remover URL pública de API do frontend | UI usa apenas endpoints same-origin; desenvolvimento usa `API_DEV_ORIGIN` para a API Node local |
 | V02 | Criar serviço Fastify Node na VPS e pool PostgreSQL local | `DATABASE_URL` fica na VPS; role mínimo, pool limitado, query parametrizada, nenhuma conexão externa ao Postgres |
 | V03 | Migrar autenticação OIDC/PKCE, state/nonce, sessão persistente, CSRF e logout | Callback por ambiente, cookie seguro, 401 apropriado e testes com issuer de homologação |
 | V04 | Portar autorização, escopos, carteira, overview/histórico e ETag/If-Match | Contratos existentes e resultados de domínio equivalentes, incluindo 404 fora do escopo |
@@ -1076,7 +1066,7 @@ corte.
 | V07 | Substituir filesystem e worker residente | Object storage privado e cron/queue/job runner com leases, retry, dead-letter e idempotência definidos |
 | V08 | Preparar rede VPS/Vercel | API só em loopback atrás de HTTPS reverse proxy/túnel, token gateway; PostgreSQL sem porta pública; sem requisito de Static IP Vercel |
 | V09 | Ligar GitHub/Vercel e configurar ambientes | Preview/Production segregados; nenhuma credencial no Git; deploy Preview com smoke/E2E |
-| V10 | Corte e rollback | UAT, restore, E2E, plano de rollback e aprovação formal; então desativar API .NET como runtime |
+| V10 | Corte e rollback | UAT, restore, E2E, plano de rollback e aprovação formal antes de liberar o único runtime Node |
 
 Pendências externas para V03/V06/V08/V09: dados do OIDC (issuer, client e callback),
 versão/endereço/role TLS do PostgreSQL VPS, política de firewall/conectividade,
@@ -1240,7 +1230,7 @@ O dicionário a seguir cobre todas as colunas nomeadas do escopo. “Origem” i
 
 ## 30 Contrato físico do núcleo centrado na PO
 
-Esta seção define os campos que não podem ficar implícitos na primeira modelagem física. Campos comuns de auditoria e versão seguem a seção 8. Os nomes SQL usam snake_case. `?` indica nulo permitido; sem `?`, obrigatório. As migrations finais devem materializar FKs, checks e índices, além do mapeamento EF Core.
+Esta seção define os campos que não podem ficar implícitos na primeira modelagem física. Campos comuns de auditoria e versão seguem a seção 8. Os nomes SQL usam snake_case. `?` indica nulo permitido; sem `?`, obrigatório. As migrations finais devem materializar FKs, checks e índices, além dos repositórios PostgreSQL da API Node.
 
 | Tabela | Colunas específicas | Restrições e comportamento |
 |---|---|---|
@@ -1277,7 +1267,7 @@ Toda alteração operacional carrega o identificador da entidade modificada e as
 
 O primeiro incremento útil deverá provar o centro do domínio antes de ampliar o ERP:
 
-1. Fixar as versões, criar projetos .NET/Next.js e iniciar PostgreSQL, Keycloak e Azurite locais.
+1. Fixar Node/pnpm, preparar Next.js e Fastify e configurar PostgreSQL de teste segregado.
 2. Implementar autenticação, um administrador provisionado e escopo por importador.
 3. Criar as migrations de PO, observação histórica, IP, vínculo legado, source row e auditoria.
 4. Extrair os valores das duas abas e produzir uma prévia sem gravação operacional.
@@ -1336,9 +1326,6 @@ As decisões de arquitetura, grãos, permissões e tratamento de dados são prop
 
 | Tema | Referência oficial |
 |---|---|
-| Política de suporte .NET | [Microsoft .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core) |
-| Compatibilidade EF Core 10 e .NET 10 | [What is new in EF Core 10](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/whatsnew) |
-| Provider PostgreSQL EF Core 10 | [Npgsql EF Core 10 release notes](https://www.npgsql.org/efcore/release-notes/10.0.html) |
 | Next.js 16 | [Next.js 16](https://nextjs.org/blog/next-16) |
 | Runtime Node LTS | [Node.js releases](https://nodejs.org/en/about/previous-releases) |
 | Versões PostgreSQL | [PostgreSQL versioning policy](https://www.postgresql.org/support/versioning/) |
@@ -1351,7 +1338,6 @@ As decisões de arquitetura, grãos, permissões e tratamento de dados são prop
 | Integração com PostgreSQL | [Vercel Postgres e conexões externas](https://vercel.com/docs/postgres) |
 | Runtime das funções | [Vercel Functions runtimes](https://vercel.com/docs/functions/runtimes) |
 | Proteção anti-CSRF | [OWASP CSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html) |
-| Armazenamento local | [Azurite para desenvolvimento](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite) |
 | Estrutura XLSX e valores salvos | [Open XML spreadsheet formulas](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-formulas) |
 | Modelo semântico e grãos | [Power BI star schema guidance](https://learn.microsoft.com/en-us/power-bi/guidance/star-schema) |
 | Acessibilidade de interface | [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/) |
